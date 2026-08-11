@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReaLeague 星取表</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background-color: #f8f9fa;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #1b4332;
+    }
+    .instructions {
+      max-width: 950px;
+      margin: 0 auto 15px;
+      padding: 10px 15px;
+      background: #e9ecef;
+      border-radius: 6px;
+      font-size: 0.9em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-save {
+      background-color: #2d6a4f;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .btn-save:hover {
+      background-color: #1b4332;
+    }
+    .btn-reset {
+      background-color: #e63946;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 13px;
+    }
+    .btn-reset:hover {
+      background-color: #c1121f;
+    }
+    .table-container {
+      overflow-x: auto;
+      max-width: 100%;
+      background: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      text-align: center;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #dee2e6;
+      padding: 6px;
+      min-width: 65px;
+      vertical-align: middle;
+    }
+    th {
+      background-color: #2d6a4f;
+      color: white;
+      white-space: nowrap;
+    }
+    .team-cell {
+      font-weight: bold;
+      background-color: #f1f3f5;
+      white-space: nowrap;
+      text-align: left;
+      padding: 4px 8px;
+    }
+    .team-flex {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .emblem-main {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+    .emblem-header {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto 2px;
+    }
+    .header-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 12px;
+    }
+    .diagonal {
+      background-color: #ced4da;
+    }
+    .score-input {
+      width: 24px;
+      text-align: center;
+      font-size: 13px;
+      padding: 2px 0;
+    }
+    .match-cell {
+      white-space: nowrap;
+    }
+    .win { background-color: #d8f3dc; }
+    .loss { background-color: #ffe3e3; }
+    .draw { background-color: #fff3bf; }
+    .rank-1 { background-color: #ffec99; font-weight: bold; }
+    .rank-2 { background-color: #e9ecef; font-weight: bold; }
+    .rank-3 { background-color: #f8d7da; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <h1>ReaLeague 星取表</h1>
+  <div class="instructions">
+    <span><strong>使い方:</strong> スコアを入力後、右側の「結果を保存・順位更新」ボタンを押すと集計・保存されます。</span>
+    <div class="btn-group">
+      <button class="btn-save" onclick="applyAndSave()">結果を保存・順位更新</button>
+      <button class="btn-reset" onclick="resetScores()">クリア</button>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table id="leagueTable">
+      <thead>
+        <tr>
+          <th>順位</th>
+          <th>チーム</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const initialTeams = [
+      { id: "sfon", name: "スフォンダーレ", logo: "スフォンダーレSS LOGO.png" },
+      { id: "cereje", name: "Cereje", logo: "FC Y Cereje ロゴ - 1.png" },
+      { id: "hayama", name: "ハヤマ", logo: "JSC HAYAMA 栗東.png" },
+      { id: "hokuriku", name: "北陸", logo: "hokuriku.png" },
+      { id: "nishiyama", name: "西山", logo: "西山FC.png" },
+      { id: "advance", name: "アドバンス", logo: "FC ADVANCE.png" },
+      { id: "nishinomiya", name: "西宮", logo: "西宮SS(背景透過).png" },
+      { id: "udou", name: "菟道", logo: "菟道 NEW.png" }
+    ];
+
+    const STORAGE_KEY = "realeague_scores_v4";
+
+    function createInitialMatches() {
+      let matches = {};
+      initialTeams.forEach(t1 => {
+        matches[t1.id] = {};
+        initialTeams.forEach(t2 => {
+          if (t1.id !== t2.id) {
+            matches[t1.id][t2.id] = { scoreA: '', scoreB: '' };
+          }
+        });
+      });
+      return matches;
+    }
+
+    function loadMatches() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch(e) {
+          return createInitialMatches();
+        }
+      }
+      return createInitialMatches();
+    }
+
+    let matches = loadMatches();
+
+    function saveMatches() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
+    }
+
+    // 「結果を保存・順位更新」ボタンを押したときに画面上の全入力値を読み取って反映
+    function applyAndSave() {
+      const inputs = document.querySelectorAll('.score-input');
+      inputs.forEach(input => {
+        const teamA = input.dataset.teamA;
+        const teamB = input.dataset.teamB;
+        const type = input.dataset.type;
+        const val = input.value;
+
+        if (type === 'A') {
+          matches[teamA][teamB].scoreA = val;
+          matches[teamB][teamA].scoreB = val;
+        } else {
+          matches[teamA][teamB].scoreB = val;
+          matches[teamB][teamA].scoreA = val;
+        }
+      });
+
+      saveMatches();
+      renderTable();
+      alert("スコアの保存と順位の更新が完了しました。");
+    }
+
+    function resetScores() {
+      if (confirm("全ての入力結果をリセットしてもよろしいですか？")) {
+        matches = createInitialMatches();
+        saveMatches();
+        renderTable();
+      }
+    }
+
+    function calculateStats() {
+      return initialTeams.map(team => {
+        let win = 0, draw = 0, loss = 0, gf = 0, ga = 0;
+
+        Object.keys(matches[team.id]).forEach(oppId => {
+          const m = matches[team.id][oppId];
+          if (m.scoreA !== '' && m.scoreB !== '' && !isNaN(m.scoreA) && !isNaN(m.scoreB)) {
+            const a = parseInt(m.scoreA, 10);
+            const b = parseInt(m.scoreB, 10);
+            gf += a;
+            ga += b;
+            if (a > b) win++;
+            else if (a === b) draw++;
+            else loss++;
+          }
+        });
+
+        const pts = win * 3 + draw * 1;
+        const gd = gf - ga;
+
+        return { ...team, win, draw, loss, pts, gf, ga, gd };
+      });
+    }
+
+    function renderTable() {
+      const stats = calculateStats();
+
+      // 勝点 > 得失点差 > 総得点 でソート
+      stats.sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        if (b.gd !== a.gd) return b.gd - a.gd;
+        return b.gf - a.gf;
+      });
+
+      const tableHead = document.querySelector("#leagueTable thead tr");
+      tableHead.innerHTML = `
+        <th>順位</th>
+        <th>チーム</th>
+        ${stats.map(t => `
+          <th>
+            <div class="header-content">
+              <img src="${t.logo}" alt="${t.name}" class="emblem-header" onerror="this.style.display='none'">
+              <span>${t.name}</span>
+            </div>
+          </th>
+        `).join('')}
+        <th>勝</th><th>分</th><th>負</th><th>勝点</th><th>得点</th><th>失点</th><th>得失</th>
+      `;
+
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = '';
+
+      stats.forEach((teamStats, index) => {
+        const row = document.createElement("tr");
+
+        let rankClass = "";
+        if (index === 0) rankClass = "rank-1";
+        else if (index === 1) rankClass = "rank-2";
+        else if (index === 2) rankClass = "rank-3";
+
+        let rowHtml = `<td class="${rankClass}">${index + 1}</td>`;
+        
+        rowHtml += `
+          <td class="team-cell">
+            <div class="team-flex">
+              <img src="${teamStats.logo}" alt="${teamStats.name}" class="emblem-main" onerror="this.src='https://via.placeholder.com/32?text=FC'">
+              <span>${teamStats.name}</span>
+            </div>
+          </td>
+        `;
+
+        stats.forEach(oppStats => {
+          if (teamStats.id === oppStats.id) {
+            rowHtml += `<td class="diagonal">＼</td>`;
+          } else {
+            const m = matches[teamStats.id][oppStats.id];
+            let cellClass = "";
+            if (m.scoreA !== '' && m.scoreB !== '') {
+              const a = parseInt(m.scoreA, 10);
+              const b = parseInt(m.scoreB, 10);
+              if (a > b) cellClass = "win";
+              else if (a === b) cellClass = "draw";
+              else cellClass = "loss";
+            }
+
+            rowHtml += `
+              <td class="match-cell ${cellClass}">
+                <input type="number" class="score-input" value="${m.scoreA}" min="0"
+                  data-team-a="${teamStats.id}" data-team-b="${oppStats.id}" data-type="A">
+                -
+                <input type="number" class="score-input" value="${m.scoreB}" min="0"
+                  data-team-a="${teamStats.id}" data-team-b="${oppStats.id}" data-type="B">
+              </td>
+            `;
+          }
+        });
+
+        rowHtml += `
+          <td>${teamStats.win}</td>
+          <td>${teamStats.draw}</td>
+          <td>${teamStats.loss}</td>
+          <td><strong>${teamStats.pts}</strong></td>
+          <td>${teamStats.gf}</td>
+          <td>${teamStats.ga}</td>
+          <td>${teamStats.gd > 0 ? '+' + teamStats.gd : teamStats.gd}</td>
+        `;
+
+        row.innerHTML = rowHtml;
+        tbody.appendChild(row);
+      });
+    }
+
+    renderTable();
+  </script>
+</body>
+</html>
