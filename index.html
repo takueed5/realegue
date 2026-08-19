@@ -137,7 +137,7 @@
 
   <h1>ReaLeague 星取表</h1>
   <div class="instructions">
-    <span><strong>使い方:</strong> スコアを入力後、右側の「結果を保存・順位更新」ボタンを押すと集計・保存されます。</span>
+    <span><strong>使い方:</strong> スコアを入力後、「結果を保存・順位更新」ボタンを押すとこの端末に保存されます。</span>
     <div class="btn-group">
       <button class="btn-save" onclick="applyAndSave()">結果を保存・順位更新</button>
       <button class="btn-reset" onclick="resetScores()">クリア</button>
@@ -159,17 +159,17 @@
 
   <script>
     const initialTeams = [
-      { id: "sfon", name: "スフォンダーレ", logo: "スフォンダーレSS LOGO.png" },
-      { id: "cereje", name: "Cereje", logo: "FC Y Cereje ロゴ - 1.png" },
-      { id: "hayama", name: "ハヤマ", logo: "JSC HAYAMA 栗東.png" },
-      { id: "hokuriku", name: "北陸", logo: "hokuriku.png" },
-      { id: "nishiyama", name: "西山", logo: "西山FC.png" },
-      { id: "advance", name: "アドバンス", logo: "FC ADVANCE.png" },
-      { id: "nishinomiya", name: "西宮", logo: "西宮SS(背景透過).png" },
-      { id: "udou", name: "菟道", logo: "菟道 NEW.png" }
+      { id: "sfon", name: "スフォンダーレ", logo: "images/sfon.png" },
+      { id: "cereje", name: "Cereje", logo: "images/cereje.png" },
+      { id: "hayama", name: "ハヤマ", logo: "images/hayama.png" },
+      { id: "hokuriku", name: "北陸", logo: "images/hokuriku.png" },
+      { id: "nishiyama", name: "西山", logo: "images/nishiyama.png" },
+      { id: "advance", name: "アドバンス", logo: "images/advance.png" },
+      { id: "nishinomiya", name: "西宮", logo: "images/nishinomiya.png" },
+      { id: "udou", name: "菟道", logo: "images/udou.png" }
     ];
 
-    const STORAGE_KEY = "realeague_scores_v4";
+    const STORAGE_KEY = "realeague_scores_final";
 
     function createInitialMatches() {
       let matches = {};
@@ -188,9 +188,13 @@
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          // データの健全性チェック
+          if (parsed && typeof parsed === 'object') {
+            return parsed;
+          }
         } catch(e) {
-          return createInitialMatches();
+          console.error("Failed to load saved data", e);
         }
       }
       return createInitialMatches();
@@ -199,10 +203,14 @@
     let matches = loadMatches();
 
     function saveMatches() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
+      } catch(e) {
+        alert("保存に失敗しました。ブラウザのストレージ設定を確認してください。");
+      }
     }
 
-    // 「結果を保存・順位更新」ボタンを押したときに画面上の全入力値を読み取って反映
+    // 入力欄の内容をオブジェクト構造に直接読み込んで保存・描画
     function applyAndSave() {
       const inputs = document.querySelectorAll('.score-input');
       inputs.forEach(input => {
@@ -211,12 +219,14 @@
         const type = input.dataset.type;
         const val = input.value;
 
-        if (type === 'A') {
-          matches[teamA][teamB].scoreA = val;
-          matches[teamB][teamA].scoreB = val;
-        } else {
-          matches[teamA][teamB].scoreB = val;
-          matches[teamB][teamA].scoreA = val;
+        if (matches[teamA] && matches[teamA][teamB]) {
+          if (type === 'A') {
+            matches[teamA][teamB].scoreA = val;
+            matches[teamB][teamA].scoreB = val;
+          } else {
+            matches[teamA][teamB].scoreB = val;
+            matches[teamB][teamA].scoreA = val;
+          }
         }
       });
 
@@ -237,18 +247,20 @@
       return initialTeams.map(team => {
         let win = 0, draw = 0, loss = 0, gf = 0, ga = 0;
 
-        Object.keys(matches[team.id]).forEach(oppId => {
-          const m = matches[team.id][oppId];
-          if (m.scoreA !== '' && m.scoreB !== '' && !isNaN(m.scoreA) && !isNaN(m.scoreB)) {
-            const a = parseInt(m.scoreA, 10);
-            const b = parseInt(m.scoreB, 10);
-            gf += a;
-            ga += b;
-            if (a > b) win++;
-            else if (a === b) draw++;
-            else loss++;
-          }
-        });
+        if (matches[team.id]) {
+          Object.keys(matches[team.id]).forEach(oppId => {
+            const m = matches[team.id][oppId];
+            if (m && m.scoreA !== '' && m.scoreB !== '' && !isNaN(m.scoreA) && !isNaN(m.scoreB)) {
+              const a = parseInt(m.scoreA, 10);
+              const b = parseInt(m.scoreB, 10);
+              gf += a;
+              ga += b;
+              if (a > b) win++;
+              else if (a === b) draw++;
+              else loss++;
+            }
+          });
+        }
 
         const pts = win * 3 + draw * 1;
         const gd = gf - ga;
@@ -308,11 +320,14 @@
           if (teamStats.id === oppStats.id) {
             rowHtml += `<td class="diagonal">＼</td>`;
           } else {
-            const m = matches[teamStats.id][oppStats.id];
+            const m = matches[teamStats.id] ? matches[teamStats.id][oppStats.id] : { scoreA: '', scoreB: '' };
+            const scoreA = m ? m.scoreA : '';
+            const scoreB = m ? m.scoreB : '';
+
             let cellClass = "";
-            if (m.scoreA !== '' && m.scoreB !== '') {
-              const a = parseInt(m.scoreA, 10);
-              const b = parseInt(m.scoreB, 10);
+            if (scoreA !== '' && scoreB !== '') {
+              const a = parseInt(scoreA, 10);
+              const b = parseInt(scoreB, 10);
               if (a > b) cellClass = "win";
               else if (a === b) cellClass = "draw";
               else cellClass = "loss";
@@ -320,10 +335,10 @@
 
             rowHtml += `
               <td class="match-cell ${cellClass}">
-                <input type="number" class="score-input" value="${m.scoreA}" min="0"
+                <input type="number" class="score-input" value="${scoreA}" min="0"
                   data-team-a="${teamStats.id}" data-team-b="${oppStats.id}" data-type="A">
                 -
-                <input type="number" class="score-input" value="${m.scoreB}" min="0"
+                <input type="number" class="score-input" value="${scoreB}" min="0"
                   data-team-a="${teamStats.id}" data-team-b="${oppStats.id}" data-type="B">
               </td>
             `;
@@ -345,6 +360,7 @@
       });
     }
 
+    // 初回描画
     renderTable();
   </script>
 </body>
