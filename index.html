@@ -137,10 +137,10 @@
 
   <h1>ReaLeague 星取表</h1>
   <div class="instructions">
-    <span><strong>使い方:</strong> スコアを入力後、「結果を保存・順位更新」ボタンを押すとこの端末に保存されます。</span>
+    <span><strong>使い方:</strong> スコアを入力後、「一時保存」を押すとこの端末に保存されます。全員に公開する公式スコアはコード内で管理されます。</span>
     <div class="btn-group">
-      <button class="btn-save" onclick="applyAndSave()">結果を保存・順位更新</button>
-      <button class="btn-reset" onclick="resetScores()">クリア</button>
+      <button class="btn-save" onclick="applyAndSave()">一時保存・順位更新</button>
+      <button class="btn-reset" onclick="resetScores()">公式状態に戻す</button>
     </div>
   </div>
 
@@ -160,7 +160,7 @@
   <script>
     const initialTeams = [
       { id: "sfon", name: "スフォンダーレ", logo: "スフォンダーレSS LOGO.png" },
-      { id: "cereje", name: "Cereje", logo: "FC Y Cereje ロゴ - 1.png"},
+      { id: "cereje", name: "Cereje", logo: "FC Y Cereje ロゴ - 1.png" },
       { id: "hayama", name: "ハヤマ", logo: "JSC HAYAMA 栗東.png" },
       { id: "hokuriku", name: "北陸", logo: "hokuriku.png" },
       { id: "nishiyama", name: "西山", logo: "西山FC.png" },
@@ -169,7 +169,58 @@
       { id: "udou", name: "菟道", logo: "菟道 NEW.png" }
     ];
 
-    const STORAGE_KEY = "realeague_scores_final";
+    /* 
+      =======================================================
+      ★【公式スコア入力欄】★
+      ここに数値を書くと、全員のブラウザに最初から反映されます。
+      書き方: 'チームA_チームB': [チームAの点数, チームBの点数]
+      =======================================================
+    */
+   const INITIAL_SCORES = {
+      // 1. スフォンダーレの対戦
+      'sfon_cereje': ['', ''],
+      'sfon_hayama': ['', ''],
+      'sfon_hokuriku': ['', ''],
+      'sfon_nishiyama': ['', ''],
+      'sfon_advance': ['', ''],
+      'sfon_nishinomiya': ['', ''],
+      'sfon_udou': ['', ''],
+
+      // 2. Cerejeの対戦
+      'cereje_hayama': ['', ''],
+      'cereje_hokuriku': [1, 1],
+      'cereje_nishiyama': [7, 0],
+      'cereje_advance': ['', ''],
+      'cereje_nishinomiya': ['', ''],
+      'cereje_udou': ['', ''],
+
+      // 3. ハヤマの対戦
+      'hayama_hokuriku': [0, 3],
+      'hayama_nishiyama': [4, 1],
+      'hayama_advance': ['', ''],
+      'hayama_nishinomiya': ['', ''],
+      'hayama_udou': [1, 1],
+
+      // 4. 北陸の対戦
+      'hokuriku_nishiyama': ['', ''],
+      'hokuriku_advance': ['', ''],
+      'hokuriku_nishinomiya': ['', ''],
+      'hokuriku_udou': [1, 2],
+
+      // 5. 西山の対戦
+      'nishiyama_advance': ['', ''],
+      'nishiyama_nishinomiya': ['', ''],
+      'nishiyama_udou': ['', ''],
+
+      // 6. アドバンスの対戦
+      'advance_nishinomiya': ['', ''],
+      'advance_udou': ['', ''],
+
+      // 7. 西宮の対戦
+      'nishinomiya_udou': [4, 4]
+    };
+
+    const STORAGE_KEY = "realeague_scores_v2";
 
     function createInitialMatches() {
       let matches = {};
@@ -181,6 +232,19 @@
           }
         });
       });
+
+      // 事前定義スコア（INITIAL_SCORES）を反映
+      Object.keys(INITIAL_SCORES).forEach(key => {
+        const [teamA, teamB] = key.split('_');
+        const [scoreA, scoreB] = INITIAL_SCORES[key];
+        if (matches[teamA] && matches[teamA][teamB]) {
+          matches[teamA][teamB].scoreA = scoreA;
+          matches[teamA][teamB].scoreB = scoreB;
+          matches[teamB][teamA].scoreA = scoreB;
+          matches[teamB][teamA].scoreB = scoreA;
+        }
+      });
+
       return matches;
     }
 
@@ -189,7 +253,6 @@
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          // データの健全性チェック
           if (parsed && typeof parsed === 'object') {
             return parsed;
           }
@@ -206,11 +269,10 @@
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
       } catch(e) {
-        alert("保存に失敗しました。ブラウザのストレージ設定を確認してください。");
+        alert("保存に失敗しました。");
       }
     }
 
-    // 入力欄の内容をオブジェクト構造に直接読み込んで保存・描画
     function applyAndSave() {
       const inputs = document.querySelectorAll('.score-input');
       inputs.forEach(input => {
@@ -232,13 +294,13 @@
 
       saveMatches();
       renderTable();
-      alert("スコアの保存と順位の更新が完了しました。");
+      alert("端末内に一時保存しました。");
     }
 
     function resetScores() {
-      if (confirm("全ての入力結果をリセットしてもよろしいですか？")) {
+      if (confirm("端末の保存データを消去し、公式（初期）スコアの状態に戻しますか？")) {
+        localStorage.removeItem(STORAGE_KEY);
         matches = createInitialMatches();
-        saveMatches();
         renderTable();
       }
     }
@@ -272,7 +334,6 @@
     function renderTable() {
       const stats = calculateStats();
 
-      // 勝点 > 得失点差 > 総得点 でソート
       stats.sort((a, b) => {
         if (b.pts !== a.pts) return b.pts - a.pts;
         if (b.gd !== a.gd) return b.gd - a.gd;
@@ -310,7 +371,7 @@
         rowHtml += `
           <td class="team-cell">
             <div class="team-flex">
-              <img src="${teamStats.logo}" alt="${teamStats.name}" class="emblem-main" onerror="this.src='https://via.placeholder.com/32?text=FC'">
+              <img src="${teamStats.logo}" alt="${teamStats.name}" class="emblem-main" onerror="this.style.display='none'">
               <span>${teamStats.name}</span>
             </div>
           </td>
@@ -360,7 +421,6 @@
       });
     }
 
-    // 初回描画
     renderTable();
   </script>
 </body>
