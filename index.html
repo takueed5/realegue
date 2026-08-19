@@ -13,66 +13,25 @@
     }
     h1 {
       text-align: center;
-      color: #1b4332;
-    }
-    .instructions {
-      max-width: 950px;
-      margin: 0 auto 15px;
-      padding: 10px 15px;
-      background: #e9ecef;
-      border-radius: 6px;
-      font-size: 0.9em;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-    }
-    .btn-group {
-      display: flex;
-      gap: 10px;
-    }
-    .btn-save {
-      background-color: #2d6a4f;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 14px;
-    }
-    .btn-save:hover {
-      background-color: #1b4332;
-    }
-    .btn-reset {
-      background-color: #e63946;
-      color: white;
-      border: none;
-      padding: 8px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 13px;
-    }
-    .btn-reset:hover {
-      background-color: #c1121f;
+      color: #d4af37;
     }
     .table-container {
       overflow-x: auto;
       max-width: 100%;
-      background: #fff;
+      background: #111;
       padding: 10px;
       border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 5px rgba(255,255,255,0.1);
     }
     table {
       border-collapse: collapse;
       width: 100%;
       text-align: center;
       font-size: 14px;
+      color: #fff;
     }
     th, td {
-      border: 1px solid #dee2e6;
+      border: 1px solid #444;
       padding: 6px;
       min-width: 65px;
       vertical-align: middle;
@@ -84,7 +43,8 @@
     }
     .team-cell {
       font-weight: bold;
-      background-color: #f1f3f5;
+      background-color: #222;
+      color: #fff;
       white-space: nowrap;
       text-align: left;
       padding: 4px 8px;
@@ -114,23 +74,21 @@
       font-size: 12px;
     }
     .diagonal {
-      background-color: #ced4da;
-    }
-    .score-input {
-      width: 24px;
-      text-align: center;
-      font-size: 13px;
-      padding: 2px 0;
+      background-color: #333;
+      color: #777;
     }
     .match-cell {
       white-space: nowrap;
+      font-weight: bold;
     }
-    .win { background-color: #d8f3dc; }
-    .loss { background-color: #ffe3e3; }
-    .draw { background-color: #fff3bf; }
-    .rank-1 { background-color: #ffec99; font-weight: bold; }
-    .rank-2 { background-color: #e9ecef; font-weight: bold; }
-    .rank-3 { background-color: #f8d7da; font-weight: bold; }
+    /* 勝敗別の色付け（黒背景になじむダークトーン） */
+    .win { background-color: #1e4620; color: #a3cfbb; }
+    .loss { background-color: #4a1e1e; color: #f1aeb5; }
+    .draw { background-color: #4a3e1e; color: #ffe69c; }
+    /* 順位の色付け */
+    .rank-1 { background-color: #d4af37; color: #000; font-weight: bold; }
+    .rank-2 { background-color: #c0c0c0; color: #000; font-weight: bold; }
+    .rank-3 { background-color: #cd7f32; color: #000; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -164,12 +122,13 @@
 
     /* 
       =======================================================
-      ★【公式スコア入力欄】★
-      ここに数値を書くと、全員のブラウザに最初から反映されます。
-      書き方: 'チームA_チームB': [チームAの点数, チームBの点数]
+      ★【全28試合・公式スコア設定欄】★
+      シングルクォーテーションの中に数字を入力してください。
+      例: 'sfon_cereje': [2, 1],  （スフォンダーレ 2 - 1 Cereje）
+      未消化の試合は ['' , ''] のままでOKです。
       =======================================================
     */
-   const INITIAL_SCORES = {
+    const INITIAL_SCORES = {
       // 1. スフォンダーレの対戦
       'sfon_cereje': ['', ''],
       'sfon_hayama': ['', ''],
@@ -189,9 +148,9 @@
 
       // 3. ハヤマの対戦
       'hayama_hokuriku': [0, 3],
-      'hayama_nishiyama': [4, 1],
+      'hayama_nishiyama': ['', ''],
       'hayama_advance': ['', ''],
-      'hayama_nishinomiya': ['', ''],
+      'hayama_nishinomiya': [4, 1],
       'hayama_udou': [1, 1],
 
       // 4. 北陸の対戦
@@ -213,9 +172,7 @@
       'nishinomiya_udou': [4, 4]
     };
 
-    const STORAGE_KEY = "realeague_scores_v2";
-
-    function createInitialMatches() {
+    function createMatchesData() {
       let matches = {};
       initialTeams.forEach(t1 => {
         matches[t1.id] = {};
@@ -226,7 +183,6 @@
         });
       });
 
-      // 事前定義スコア（INITIAL_SCORES）を反映
       Object.keys(INITIAL_SCORES).forEach(key => {
         const [teamA, teamB] = key.split('_');
         const [scoreA, scoreB] = INITIAL_SCORES[key];
@@ -241,62 +197,7 @@
       return matches;
     }
 
-    function loadMatches() {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') {
-            return parsed;
-          }
-        } catch(e) {
-          console.error("Failed to load saved data", e);
-        }
-      }
-      return createInitialMatches();
-    }
-
-    let matches = loadMatches();
-
-    function saveMatches() {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(matches));
-      } catch(e) {
-        alert("保存に失敗しました。");
-      }
-    }
-
-    function applyAndSave() {
-      const inputs = document.querySelectorAll('.score-input');
-      inputs.forEach(input => {
-        const teamA = input.dataset.teamA;
-        const teamB = input.dataset.teamB;
-        const type = input.dataset.type;
-        const val = input.value;
-
-        if (matches[teamA] && matches[teamA][teamB]) {
-          if (type === 'A') {
-            matches[teamA][teamB].scoreA = val;
-            matches[teamB][teamA].scoreB = val;
-          } else {
-            matches[teamA][teamB].scoreB = val;
-            matches[teamB][teamA].scoreA = val;
-          }
-        }
-      });
-
-      saveMatches();
-      renderTable();
-      alert("端末内に一時保存しました。");
-    }
-
-    function resetScores() {
-      if (confirm("端末の保存データを消去し、公式（初期）スコアの状態に戻しますか？")) {
-        localStorage.removeItem(STORAGE_KEY);
-        matches = createInitialMatches();
-        renderTable();
-      }
-    }
+    const matches = createMatchesData();
 
     function calculateStats() {
       return initialTeams.map(team => {
@@ -327,6 +228,7 @@
     function renderTable() {
       const stats = calculateStats();
 
+      // 勝点 ＞ 得失点差 ＞ 総得点で順位ソート
       stats.sort((a, b) => {
         if (b.pts !== a.pts) return b.pts - a.pts;
         if (b.gd !== a.gd) return b.gd - a.gd;
@@ -379,9 +281,13 @@
             const scoreB = m ? m.scoreB : '';
 
             let cellClass = "";
+            let scoreDisplay = "";
+
             if (scoreA !== '' && scoreB !== '') {
               const a = parseInt(scoreA, 10);
               const b = parseInt(scoreB, 10);
+              scoreDisplay = `${a} - ${b}`;
+
               if (a > b) cellClass = "win";
               else if (a === b) cellClass = "draw";
               else cellClass = "loss";
@@ -389,11 +295,7 @@
 
             rowHtml += `
               <td class="match-cell ${cellClass}">
-                <input type="number" class="score-input" value="${scoreA}" min="0"
-                  data-team-a="${teamStats.id}" data-team-b="${oppStats.id}" data-type="A">
-                -
-                <input type="number" class="score-input" value="${scoreB}" min="0"
-                  data-team-a="${teamStats.id}" data-team-b="${oppStats.id}" data-type="B">
+                ${scoreDisplay}
               </td>
             `;
           }
